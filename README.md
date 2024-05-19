@@ -20,6 +20,13 @@ There are numerous tools to write bytes from a file in a c++ array (xxd, ImHex, 
 the default [InjectableJar.jar.hpp](src/InjectableJar.jar.hpp) was generated using [ignore_File2Hex.exe](InjectableJar/target/ignore_File2Hex.exe)\
 which converts every file in the working directory to .hpp, except the ones starting with "ignore_".
 
+## Building :
+Use visual studio or install cmake and run :
+```
+cmake -B ./Build
+cmake --build Build --target JarLoader --config Release
+```
+
 ## How it works :
 Like other loaders it creates a new URLClassLoader object or use an existing one and calls addURL.\
 However this requires to have an URL, so to have your jar file stored somewhere on disk and create the URL from its path.\
