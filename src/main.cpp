@@ -1,3 +1,5 @@
+#include <ixwebsocket/IXNetSystem.h>
+#include <ixwebsocket/IXHttpServer.h>
 #ifdef _WIN32
     #include <Windows.h>
 #elif defined(__linux__)
@@ -7,6 +9,7 @@
 
 #include "meta_jni.hpp"
 #include "mappings.hpp"
+#include "InjectableJar.jar.hpp"
 #include <thread>
 #include <iostream>
 
@@ -33,9 +36,13 @@ static bool is_uninject_key_pressed()
 static void mainThread(void* dll)
 {
 #ifdef _WIN32
+    /* it's better to launch minecraft in console instead
     AllocConsole();
     FILE* buff1 = nullptr;
     freopen_s(&buff1, "CONOUT$", "w", stdout);
+    freopen_s(&buff1, "CONOUT$", "w", stderr);
+    */
+    ix::initNetSystem();
 #elif defined(__linux__)
     display = XOpenDisplay(NULL);
 #endif
@@ -45,59 +52,70 @@ static void mainThread(void* dll)
     JNIEnv* env = nullptr;
     jvm->AttachCurrentThread((void**)&env, nullptr);
     jni::init();
-
     jni::set_thread_env(env); //this is needed for every new thread that uses the lib
 
-    env->PushLocalFrame(100); //every local ref created after this will be deleted on PopLocalFrame
+    ix::HttpServer server(1337, "127.0.0.1");
+    auto res = server.listen();
+    assertm(res.first, "failed to init webserver");
+    server.setOnConnectionCallback(
+        [](ix::HttpRequestPtr request,
+            std::shared_ptr<ix::ConnectionState> connectionState) -> ix::HttpResponsePtr
 
-    maps::Minecraft Minecraft{};
-    maps::EntityPlayerSP EntityPlayerSP{};
-    maps::String String{};
+        
+        {
+            if (request->uri == "/InjectableJar.jar")
+                return std::make_shared<ix::HttpResponse>(200, "OK",
+                ix::HttpErrorCode::Ok,
+                ix::WebSocketHttpHeaders{ {"Content-Disposition", "attachment"} },
+                std::string((char*)InjectableJar_jar.data(), InjectableJar_jar.size()));
 
-    std::cout << "injected\n";
-    std::cout << Minecraft.get_name() << '\n';
-    std::cout << Minecraft.get_signature() << '\n';
-    maps::Minecraft theMinecraft = Minecraft.theMinecraft.get();
-    maps::Minecraft g_theMinecraft = maps::Minecraft(theMinecraft, true);
-    std::cout << "display width test: " << theMinecraft.displayWidth.get() << '\n';
-    theMinecraft.displayWidth = 100;
-    std::cout << "display width test after change: " << theMinecraft.displayWidth.get() << '\n';
-    theMinecraft.clickMouse();
-    std::cout << Minecraft.clickMouse.get_signature() << '\n';
+            return std::make_shared<ix::HttpResponse>(400, "Bad Request");
+        });
+    server.start();
 
-    theMinecraft.resize(800, 600);
 
-    maps::EntityPlayerSP thePlayer = theMinecraft.thePlayer.get();
-    thePlayer.sendChatMessage(String.create("test"));
-    maps::String clientBrand = thePlayer.getClientBrand.call();
-    std::cout << clientBrand.to_string() << '\n';
-    jni::array<maps::EntityPlayerSP> testArray = jni::array<maps::EntityPlayerSP>::create({});
-    std::cout << "test array: " << jobject(testArray) << '\n';
-
-    maps::WorldClient theWorld = theMinecraft.theWorld.get();
-    std::vector<maps::EntityPlayer> playerEntities = jni::array<maps::EntityPlayer>(theWorld.playerEntities.get().toArray()).to_vector();
-
-    for (maps::EntityPlayer& p : playerEntities)
     {
-        std::cout << p.getName().to_string() << ' ' << p.getHealth() << '\n';
-    }
+        jni::frame frame{}; // every local ref follow this frame object lifetime
 
-    maps::URL url = maps::URL::new_object(&maps::URL::constructor, String.create("http://www.example.com/docs/resource1.html"));
-    std::cout << url.toString().to_string() << '\n';
+        // it is also possible to load from disk
+        maps::URL url = maps::URL::new_object(&maps::URL::constructor, maps::String::create("http://127.0.0.1:1337/InjectableJar.jar"));
+        jni::array<maps::URL> urls = jni::array<maps::URL>::create({ url });
 
-    env->PopLocalFrame(nullptr);
+        // here we create a new classLoader but you may want to use an existing one and call addURL on it
+        // classLoader.addURL(url);
+        maps::URLClassLoader classLoader = maps::URLClassLoader::new_object(&maps::URLClassLoader::constructor, urls);
+        std::cout << classLoader.getURLs().to_vector()[0].toString().to_string() << '\n';
+        std::cout << "classLoader: " << jobject(classLoader) << '\n';
 
-    while (!is_uninject_key_pressed())
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // metaJNI uses env->findClass to get the jclass, however our Jar isn't in SystemClassLoader search path
+        jni::jclass_cache<maps::Main>::value = classLoader.findClass(maps::String::create("io.github.lefraudeur.Main"));
+        std::cout << "Loaded Main class: " << jni::jclass_cache<maps::Main>::value << '\n';
+
+        // we now call the main method which should print Hello World!
+        // Console output might be broken if you used AllocConsole(), consider using another method to check whether the jar is loaded
+        maps::Main Main{};
+        Main.main(jni::array<maps::String>{nullptr});
+
+
+        while (!is_uninject_key_pressed())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
     }
 
     jni::shutdown();
     jvm->DetachCurrentThread();
 
+    server.stop();
+
+    std::cout << "Unloaded\n";
+
 #ifdef _WIN32
+    /* it's better to launch minecraft in console instead
     fclose(buff1);
     FreeConsole();
+    */
+    ix::uninitNetSystem();
     FreeLibraryAndExitThread((HMODULE)dll, 0);
 #elif defined(__linux__)
     XCloseDisplay(display);

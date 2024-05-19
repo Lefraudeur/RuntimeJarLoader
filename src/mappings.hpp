@@ -8,8 +8,15 @@ namespace maps
 	BEGIN_KLASS_DEF(Object, "java/lang/Object")
 	END_KLASS_DEF()
 
+	BEGIN_KLASS_DEF(Class, "java/lang/Class")
+		operator jclass() const
+		{
+			return (jclass)object_instance;
+		}
+	END_KLASS_DEF()
+
 	BEGIN_KLASS_DEF(String, "java/lang/String")
-		String create(const char* str)
+		static String create(const char* str)
 		{
 			return String(jni::get_env()->NewStringUTF(str));
 		}
@@ -33,41 +40,22 @@ namespace maps
 	END_KLASS_DEF()
 	BEGIN_KLASS_DEF_EX(List, "java/util/List", Collection)
 	END_KLASS_DEF()
+
 	BEGIN_KLASS_DEF(URL, "java/net/URL")
 		jni::constructor<String> constructor{ *this };
 
 		jni::method<String, "toString"> toString{ *this };
 	END_KLASS_DEF()
 
+	BEGIN_KLASS_DEF(URLClassLoader, "java/net/URLClassLoader");
+		jni::constructor<jni::array<URL>> constructor{ *this };
 
-	BEGIN_KLASS_DEF(Entity, "pk")
-		jni::method<String, "e_"> getName{ *this };
-	END_KLASS_DEF()
-	BEGIN_KLASS_DEF_EX(EntityLivingBase, "pr", Entity)
-		jni::method<jfloat, "bn"> getHealth{ *this };
-	END_KLASS_DEF()
-	BEGIN_KLASS_DEF_EX(EntityPlayer, "wn", EntityLivingBase)
-	END_KLASS_DEF()
-	BEGIN_KLASS_DEF_EX(EntityPlayerSP, "bew", EntityPlayer)
-		jni::method<void, "e", jni::NOT_STATIC, String> sendChatMessage{ *this };
-		jni::method<String, "w", jni::NOT_STATIC> getClientBrand{ *this };
+		jni::method<void, "addURL", jni::NOT_STATIC, URL> addURL{ *this };
+		jni::method<Class, "findClass", jni::NOT_STATIC, String> findClass{ *this };
+		jni::method<jni::array<URL>, "getURLs", jni::NOT_STATIC> getURLs{ *this };
 	END_KLASS_DEF()
 
-
-	BEGIN_KLASS_DEF(World, "adm")
-		jni::field<List, "j"> playerEntities{ *this };
-	END_KLASS_DEF()
-
-	BEGIN_KLASS_DEF_EX(WorldClient, "bdb", World)
-	END_KLASS_DEF()
-
-	BEGIN_KLASS_DEF(Minecraft, "ave")
-		jni::field<Minecraft, "S", jni::STATIC> theMinecraft{ *this };
-		jni::field<jint, "d"> displayWidth{ *this };
-		jni::field<EntityPlayerSP, "h"> thePlayer{ *this };
-		jni::field<WorldClient, "f"> theWorld{ *this };
-
-		jni::method<void, "aw", jni::NOT_STATIC> clickMouse{ *this };
-		jni::method<void, "a", jni::NOT_STATIC, jint, jint> resize{ *this };
+	BEGIN_KLASS_DEF(Main, "io/github/lefraudeur/Main");
+		jni::method<void, "main", jni::STATIC, jni::array<String>> main{ *this };
 	END_KLASS_DEF()
 }

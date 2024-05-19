@@ -8,14 +8,19 @@
 #include <jni.h>
 #include <string_view>
 #include <type_traits>
-#include <cassert>
 #include <memory>
 #include <vector>
 #include <mutex>
 #include <shared_mutex>
 #include <cstdint>
+#include <functional>
 
-#define assertm(exp, msg) assert(((void)msg, exp))
+#ifdef NDEBUG
+	#define assertm(exp, msg) ;
+#else
+	#include <iostream>
+	#define assertm(exp, msg) if (!exp) { std::cout << msg << '\n'; abort(); }
+#endif
 
 #define BEGIN_KLASS_DEF(unobf_klass_name, obf_klass_name) struct unobf_klass_name##_members; using unobf_klass_name = jni::klass<obf_klass_name, unobf_klass_name##_members>; struct unobf_klass_name##_members : public jni::empty_members	{ unobf_klass_name##_members(jclass owner_klass, jobject object_instance, bool is_global_ref) : jni::empty_members(owner_klass, object_instance, is_global_ref) {}
 
@@ -29,6 +34,7 @@ namespace jni
 	inline uint32_t _tls_index = 0;
 	inline std::vector<jobject> _refs_to_delete{};
 	inline std::mutex _refs_to_delete_mutex{};
+	inline std::function<jclass(const char* class_name)> _custom_find_class{};
 
 	inline JNIEnv* get_env()
 	{
@@ -74,6 +80,11 @@ namespace jni
 #elif __linux__
 		pthread_key_delete(_tls_index);
 #endif
+	}
+
+	inline void set_custom_find_class(std::function<jclass(const char* class_name)> find_class)
+	{
+		_custom_find_class = find_class;
 	}
 
 	template<size_t N>
@@ -194,6 +205,8 @@ namespace jni
 			if (cached) return cached;
 		}
 		jclass found = (jclass)get_env()->NewGlobalRef(get_env()->FindClass(klass_type::get_name()));
+		if (!found && _custom_find_class)
+			found = _custom_find_class(klass_type::get_name());
 		assertm(found, (const char*)(concat<"failed to find class: ", klass_type::get_name()>()));
 		{
 			std::unique_lock unique_lock{ jclass_cache<klass_type>::mutex };
@@ -740,6 +753,19 @@ namespace jni
 		static constexpr auto get_signature()
 		{
 			return concat<"L", class_name, ";">();
+		}
+	};
+
+	class frame
+	{
+	public:
+		frame(jint capacity = 32)
+		{
+			get_env()->PushLocalFrame(capacity);
+		}
+		~frame()
+		{
+			get_env()->PopLocalFrame(nullptr);
 		}
 	};
 }
