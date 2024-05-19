@@ -26,6 +26,7 @@ Use visual studio or install cmake and run :
 cmake -B ./Build
 cmake --build Build --target JarLoader --config Release
 ```
+Because I was lazy to compile the libraries properly, you can't compile on debug
 
 ## How it works :
 Like other loaders it creates a new URLClassLoader object or use an existing one and calls addURL.\
