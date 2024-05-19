@@ -31,7 +31,7 @@ if(WIN32)
 	target_link_libraries(JarLoader PUBLIC "shlwapi" "WS2_32" "CRYPT32")
 elseif(UNIX)
 	target_include_directories(JarLoader PUBLIC "include/jni/linux")
-	target_link_libraries(JarLoader PUBLIC "X11") # apt install libx11-dev
+	target_link_libraries(JarLoader PUBLIC "ixwebsocket" "z" "ssl" "crypto" "X11") # apt install libx11-dev
 endif()
 
 # TODO: Add tests and install targets if needed.
