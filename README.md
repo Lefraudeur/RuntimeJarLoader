@@ -27,7 +27,7 @@ A possible solution I was using is to load your jar file classes with defineClas
 Moreover with this method, only .class files are loaded, other ressources aren't accessible.
 
 So this JarLoader keeps using the addURL method, but gives it an http URL instead of a file path.\
-This is why the dll starts a local webserver to host your jar file: http://127.0.0.1:1337/InjectableJar.jar\
+This is why the dll starts a local webserver to host your jar file: http://127.0.0.1:1337/InjectableJar.jar
 
 ## Libraries used :
 - https://github.com/Lefraudeur/MetaJNI
